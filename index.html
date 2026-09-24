@@ -384,7 +384,8 @@ async function loadIndex() {
   S.index = {};
   try {
     const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
-    snap.forEach((d) => { const v = d.data(); S.index[d.id] = { words: v.words || 0, doneAt: v.doneAt || null }; });
+    // Recount from the text rather than trusting a stored number (older builds saved 0).
+    snap.forEach((d) => { const v = d.data(); S.index[d.id] = { words: v.text ? countWords(v.text) : (v.words || 0), doneAt: v.doneAt || null }; });
     clearProblem();
   } catch (e) {
     explain(e, "loading your entries");
@@ -418,6 +419,8 @@ async function openDay(k) {
     const bk = JSON.parse(localStorage.getItem("750:" + k) || "null");
     if (bk && bk.updatedAt > (S.entry.updatedAt || 0) && (bk.text || "").length >= (S.entry.text || "").length) { S.entry.text = bk.text; S.entry.words = countWords(bk.text); S.dirty = true; }
   } catch {}
+  const recount = countWords(S.entry.text || "");
+  if (recount !== (S.entry.words || 0)) { S.entry.words = recount; S.dirty = true; } // stale count from an older build
   ed.value = S.entry.text || "";
   ed.disabled = false;
   $("#stats").hidden = true; $("#btn-stats").textContent = "Stats";
