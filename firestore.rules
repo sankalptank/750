@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each person can only touch their own tree. Nobody else, not even signed-in users, can read it.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && allowedAccount();
+      match /entries/{day} {
+        allow read, write: if request.auth != null && request.auth.uid == uid && allowedAccount();
+      }
+    }
+    // Lock the whole database to specific Google accounts. Add emails here, or return true to let
+    // any Google account keep its own private journal.
+    function allowedAccount() {
+      return request.auth.token.email in ['you@gmail.com'];
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

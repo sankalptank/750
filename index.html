@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>750</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff;
+    --ink: #1b1f2a;
+    --muted: #7a7f8c;
+    --rule: #e6e8ee;
+    --soft: #f3f4f7;
+    --done: #2e7d5b;
+    --warn: #b3543c;
+    --bar-a: #1b1f2a;
+    --bar-b: #c9ccd6;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14161c; --ink: #e7e8ee; --muted: #8a8f9c; --rule: #2a2e39;
+      --soft: #1c1f27; --done: #5fbf93; --warn: #e07a5f; --bar-a: #e7e8ee; --bar-b: #3a3f4d;
+    }
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Newsreader", Georgia, "Times New Roman", serif;
+    font-size: 17px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: inherit; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--done); outline-offset: 3px; border-radius: 2px; }
+
+  /* The one bold element: a rule across the top of the page that fills as you write. */
+  #bar { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; height: 3px; width: 0%;
+         background: var(--ink); transition: width .4s ease, background .4s ease; z-index: 5; }
+  #bar.done { background: var(--done); }
+
+  main { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.25rem 6rem; }
+
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 2.5rem; }
+  .brand { font-weight: 600; font-size: 1.35rem; letter-spacing: -.01em; text-decoration: none; }
+  nav { display: flex; gap: 1.25rem; color: var(--muted); font-size: .95rem; }
+  nav button:hover, nav button[aria-current="page"] { color: var(--ink); }
+  nav button[aria-current="page"] { text-decoration: underline; text-underline-offset: .25em; }
+
+  .meta { display: flex; justify-content: space-between; align-items: baseline; color: var(--muted); font-size: .95rem; margin-bottom: 1rem; }
+  .meta strong { color: var(--ink); font-weight: 500; }
+  .meta .repair { color: var(--done); }
+
+  textarea#editor {
+    display: block; width: 100%; min-height: 55vh; resize: none; border: 0; background: transparent;
+    padding: 0; font-size: 1.22rem; line-height: 1.65; overflow: hidden;
+  }
+  textarea#editor::placeholder { color: var(--muted); font-style: italic; opacity: .8; }
+  textarea#editor:focus { outline: none; }
+
+  footer.status { display: flex; justify-content: space-between; align-items: baseline; margin-top: 1.5rem;
+                  padding-top: .9rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .95rem; }
+  footer.status .count { color: var(--ink); font-variant-numeric: tabular-nums; }
+  footer.status .count.done { color: var(--done); }
+  footer.status .right { display: flex; gap: 1.25rem; }
+  footer.status button { color: var(--muted); }
+  footer.status button:hover { color: var(--ink); }
+  .save-err { color: var(--warn); }
+
+  /* Sign-in */
+  #signin { padding-top: 18vh; }
+  #signin h1 { font-size: 4rem; font-weight: 600; line-height: 1; margin: 0 0 .75rem; letter-spacing: -.02em; }
+  #signin p { color: var(--muted); font-size: 1.15rem; max-width: 28rem; margin: 0 0 2rem; }
+  .btn { display: inline-block; padding: .55rem 1rem; border: 1px solid var(--ink); border-radius: 999px; }
+  .btn:hover { background: var(--ink); color: var(--paper); }
+  .btn.quiet { border-color: var(--rule); color: var(--muted); }
+  .btn.quiet:hover { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+
+  /* Stats */
+  #stats { margin-top: 3rem; }
+  #stats h2 { font-size: 1.5rem; font-weight: 600; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  #stats .sub { color: var(--muted); margin: 0 0 1.25rem; }
+  .block { margin-top: 2.5rem; }
+  .block h3 { font-size: .95rem; font-weight: 400; color: var(--muted); margin: 0 0 .25rem; }
+  .block .lead { font-size: 1.6rem; font-weight: 600; margin: 0 0 1rem; line-height: 1.2; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1.5rem 2rem; }
+  svg { display: block; max-width: 100%; height: auto; }
+  .line-chart text { font-size: 11px; fill: var(--muted); font-family: inherit; }
+  .line-chart .grid { stroke: var(--rule); }
+  .line-chart path { fill: none; stroke: var(--done); stroke-width: 2.5; stroke-linejoin: round; }
+  .line-chart .goal { stroke: var(--rule); stroke-dasharray: 4 4; }
+
+  .donut { text-align: center; }
+  .donut .name { font-size: 1.35rem; font-weight: 600; line-height: 1.1; }
+  .donut .vs { color: var(--muted); font-size: .85rem; margin-bottom: .6rem; }
+  .donut svg { width: 7.5rem; margin: 0 auto; }
+  .donut circle { fill: none; stroke-width: 14; }
+  .donut .track { stroke: var(--bar-b); }
+  .donut .fill { stroke: var(--bar-a); transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dasharray .5s ease; }
+
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 8rem; }
+  .bars .b { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+  .bars .b i { display: block; width: 100%; background: var(--bar-a); border-radius: 2px 2px 0 0; min-height: 2px; }
+  .bars .b.top i { background: var(--done); }
+  .bars .b span { font-size: 1.15rem; margin-top: .4rem; line-height: 1; }
+  .bars .b small { font-size: .7rem; color: var(--muted); margin-top: .2rem; }
+
+  .summary { background: var(--soft); padding: 1rem 1.15rem; border-radius: 6px; white-space: pre-wrap; }
+  .summary-actions { margin-top: .75rem; display: flex; gap: 1rem; align-items: baseline; color: var(--muted); font-size: .95rem; }
+
+  /* History */
+  .month-nav { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; }
+  .month-nav h2 { font-size: 1.5rem; font-weight: 600; margin: 0; }
+  .month-nav button { color: var(--muted); padding: 0 .5rem; }
+  .month-nav button:hover { color: var(--ink); }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .35rem; }
+  .grid .dow { color: var(--muted); font-size: .8rem; text-align: center; padding-bottom: .25rem; }
+  .day { aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         gap: .2rem; font-size: .9rem; color: var(--muted); background: var(--soft); width: 100%; }
+  .day:hover { color: var(--ink); outline: 1px solid var(--rule); }
+  .day.empty { background: transparent; cursor: default; }
+  .day.future { opacity: .35; cursor: default; }
+  .day.today { outline: 1px solid var(--ink); color: var(--ink); }
+  .day .dot { width: .55rem; height: .55rem; border-radius: 50%; border: 1.5px solid var(--muted); }
+  .day.partial .dot { background: linear-gradient(90deg, var(--muted) 50%, transparent 50%); }
+  .day.done .dot { background: var(--done); border-color: var(--done); }
+  .day.double .dot { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--done); }
+  .day.repaired .dot { border-style: dashed; border-color: var(--done); }
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; margin-top: 1.25rem; color: var(--muted); font-size: .9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+  .legend .dot { width: .55rem; height: .55rem; border-radius: 50%; border: 1.5px solid var(--muted); display: inline-block; }
+  .legend .dot.done { background: var(--done); border-color: var(--done); }
+  .legend .dot.partial { background: linear-gradient(90deg, var(--muted) 50%, transparent 50%); }
+  .legend .dot.double { background: var(--done); border-color: var(--done); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--done); }
+  .legend .dot.repaired { border-style: dashed; border-color: var(--done); }
+  .totals { margin-top: 2rem; color: var(--muted); }
+  .totals strong { color: var(--ink); font-weight: 500; }
+
+  /* Settings */
+  .field { margin-bottom: 2rem; }
+  .field label { display: block; font-weight: 500; margin-bottom: .25rem; }
+  .field p { color: var(--muted); margin: 0 0 .6rem; }
+  select { padding: .4rem .6rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); }
+  .notice { color: var(--muted); font-size: .95rem; }
+
+  @media (max-width: 600px) {
+    main { padding-top: 1.5rem; }
+    header.top { margin-bottom: 1.5rem; }
+    #signin h1 { font-size: 3rem; }
+    textarea#editor { font-size: 1.12rem; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<main>
+
+  <section id="signin" hidden>
+    <h1>750</h1>
+    <p>Write at least 750 words every day. Nobody reads it but you.</p>
+    <button class="btn" id="btn-signin">Continue with Google</button>
+    <p class="notice" id="signin-msg" style="margin-top:1.25rem"></p>
+  </section>
+
+  <section id="app" hidden>
+    <header class="top">
+      <a class="brand" href="#" id="brand">750</a>
+      <nav>
+        <button data-view="write" aria-current="page">Today</button>
+        <button data-view="history">History</button>
+        <button data-view="settings">Settings</button>
+        <button id="btn-signout">Sign out</button>
+      </nav>
+    </header>
+
+    <div id="view-write">
+      <div class="meta">
+        <span id="date-label"></span>
+        <span id="streak-label"></span>
+      </div>
+      <textarea id="editor" placeholder="Start anywhere." spellcheck="true"></textarea>
+      <footer class="status">
+        <span class="count" id="count">0 words</span>
+        <span class="right">
+          <span id="save-status"></span>
+          <button id="btn-stats">Stats</button>
+        </span>
+      </footer>
+      <section id="stats" hidden></section>
+    </div>
+
+    <div id="view-history" hidden>
+      <div class="month-nav">
+        <button id="prev-month" aria-label="Previous month">&larr;</button>
+        <h2 id="month-title"></h2>
+        <button id="next-month" aria-label="Next month">&rarr;</button>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="legend">
+        <span><i class="dot done"></i> 750+</span>
+        <span><i class="dot double"></i> 1500+ (earns a repair)</span>
+        <span><i class="dot repaired"></i> missed, repaired</span>
+        <span><i class="dot partial"></i> some words</span>
+      </div>
+      <p class="totals" id="totals"></p>
+    </div>
+
+    <div id="view-settings" hidden>
+      <div class="field">
+        <label for="reset-hour">Day resets at</label>
+        <p>Anything written before this hour counts toward the previous day. Night owls, set it later.</p>
+        <select id="reset-hour">
+          <option value="0">12:00 am</option><option value="1">1:00 am</option><option value="2">2:00 am</option>
+          <option value="3">3:00 am</option><option value="4">4:00 am</option><option value="5">5:00 am</option>
+          <option value="6">6:00 am</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Streak rules</label>
+        <p>750 words keeps the streak. A 1500-word day earns one repair, which covers the most recent missed day after it. Repairs don't stack forever: each 1500-word day covers one gap.</p>
+      </div>
+      <div class="field">
+        <label>Your data</label>
+        <p>Entries are stored in your own Firebase project, readable only by your account. Download everything any time.</p>
+        <button class="btn quiet" id="btn-export">Download all entries (.json)</button>
+      </div>
+      <p class="notice" id="acct"></p>
+    </div>
+  </section>
+</main>
+<script type="module">
+/* ========== CONFIG — fill these in (see README) ========== */
+const FIREBASE_CONFIG = {
+  apiKey: "PASTE_ME",
+  authDomain: "PASTE_ME.firebaseapp.com",
+  projectId: "PASTE_ME",
+  appId: "PASTE_ME",
+};
+// Optional: only these Google accounts may sign in. Empty = anyone (each person still only sees their own entries).
+const ALLOWED_EMAILS = [];
+// Optional: URL of the AI summary worker (see worker.js). Leave empty to hide the summarize button.
+const AI_ENDPOINT = "";
+const GOAL = 750;
+/* ========================================================= */
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const $ = (s) => document.querySelector(s);
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const S = {
+  user: null, resetHour: 0,
+  index: {},          // dayKey -> { words, doneAt }
+  date: null,         // dayKey being edited
+  entry: null,        // full entry doc for S.date
+  dirty: false, saveTimer: null, lastPoint: 0,
+  month: null,        // Date for history view
+};
+
+/* ---------- dates ---------- */
+const pad = (n) => String(n).padStart(2, "0");
+const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayKey = () => keyOf(new Date(Date.now() - S.resetHour * 3600e3));
+const parseKey = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const shiftKey = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return keyOf(d); };
+const longDate = (k) => parseKey(k).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+/* ---------- words ---------- */
+const countWords = (t) => (t.trim().match(/\S+/g) || []).length;
+
+/* ---------- streak with repairs ----------
+   Walk back from today (or yesterday if today isn't done yet). 1500+ days earn a credit;
+   a missed day spends a credit if one exists, otherwise the streak ends. */
+function computeStreak() {
+  const t = todayKey();
+  let k = (S.index[t]?.words || 0) >= GOAL ? t : shiftKey(t, -1);
+  let streak = 0, credits = 0; const repaired = new Set();
+  for (let i = 0; i < 4000; i++) {
+    const w = S.index[k]?.words || 0;
+    if (w >= GOAL) { streak++; if (w >= 2 * GOAL) credits++; }
+    else if (credits > 0) { credits--; repaired.add(k); streak++; }
+    else break;
+    k = shiftKey(k, -1);
+  }
+  return { streak, credits, repaired };
+}
+
+/* ---------- storage ---------- */
+const userDoc = () => doc(db, "users", S.user.uid);
+const entryDoc = (k) => doc(db, "users", S.user.uid, "entries", k);
+
+async function loadIndex() {
+  const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
+  S.index = {};
+  snap.forEach((d) => { const v = d.data(); S.index[d.id] = { words: v.words || 0, doneAt: v.doneAt || null }; });
+}
+
+async function openDay(k) {
+  flushSave();
+  S.date = k; S.lastPoint = 0;
+  const snap = await getDoc(entryDoc(k));
+  S.entry = snap.exists() ? snap.data() : { text: "", words: 0, timeline: [], distractions: 0, startedAt: null, doneAt: null, summary: null };
+  // Local backup wins if newer (unsaved work from a lost connection).
+  try {
+    const bk = JSON.parse(localStorage.getItem("750:" + k) || "null");
+    if (bk && bk.updatedAt > (S.entry.updatedAt || 0) && bk.text.length >= (S.entry.text || "").length) { S.entry.text = bk.text; S.dirty = true; }
+  } catch {}
+  $("#editor").value = S.entry.text || "";
+  $("#stats").hidden = true; $("#btn-stats").textContent = "Stats";
+  render();
+  autosize();
+  if (S.dirty) scheduleSave(0);
+}
+
+function scheduleSave(ms = 1200) {
+  clearTimeout(S.saveTimer);
+  S.saveTimer = setTimeout(save, ms);
+}
+function flushSave() { if (S.dirty) { clearTimeout(S.saveTimer); save(); } }
+
+async function save() {
+  if (!S.user || !S.entry || !S.dirty) return;
+  S.dirty = false;
+  const k = S.date;
+  const payload = { ...S.entry, updatedAt: Date.now() };
+  $("#save-status").textContent = "saving";
+  $("#save-status").className = "";
+  try {
+    await setDoc(entryDoc(k), payload, { merge: true });
+    S.index[k] = { words: payload.words, doneAt: payload.doneAt };
+    localStorage.removeItem("750:" + k);
+    if (!S.dirty) $("#save-status").textContent = "saved";
+    renderMeta();
+  } catch (e) {
+    S.dirty = true;
+    $("#save-status").textContent = "not saved — check your connection";
+    $("#save-status").className = "save-err";
+    scheduleSave(5000);
+  }
+}
+
+/* ---------- editor ---------- */
+function onInput() {
+  const text = $("#editor").value;
+  const words = countWords(text);
+  const now = Date.now();
+  const e = S.entry;
+  e.text = text; e.words = words;
+  if (S.date === todayKey()) {
+    if (words > 0 && !e.startedAt) e.startedAt = now;
+    if (words >= GOAL && !e.doneAt) e.doneAt = now;
+    if (e.startedAt) {
+      const mins = +((now - e.startedAt) / 60000).toFixed(2);
+      e.timeline = e.timeline || [];
+      if (now - S.lastPoint > 15000 || e.timeline.length === 0) { e.timeline.push([mins, words]); S.lastPoint = now; }
+      else e.timeline[e.timeline.length - 1] = [mins, words];
+    }
+  }
+  S.dirty = true;
+  try { localStorage.setItem("750:" + S.date, JSON.stringify({ text, updatedAt: now })); } catch {}
+  renderCount();
+  autosize();
+  scheduleSave();
+}
+
+function autosize() {
+  const ta = $("#editor");
+  ta.style.height = "auto";
+  ta.style.height = Math.max(ta.scrollHeight, window.innerHeight * 0.55) + "px";
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && S.entry && S.date === todayKey() && S.entry.startedAt && !S.entry.doneAt) {
+    S.entry.distractions = (S.entry.distractions || 0) + 1; S.dirty = true; scheduleSave();
+  }
+  if (document.hidden) flushSave();
+});
+window.addEventListener("beforeunload", () => { if (S.dirty) flushSave(); });
+document.addEventListener("keydown", (ev) => {
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === "s") { ev.preventDefault(); flushSave(); }
+});
+
+/* ---------- render ---------- */
+function renderCount() {
+  const w = S.entry?.words || 0;
+  const c = $("#count");
+  c.textContent = `${w.toLocaleString()} word${w === 1 ? "" : "s"}`;
+  c.classList.toggle("done", w >= GOAL);
+  const bar = $("#bar");
+  bar.style.width = Math.min(100, (w / GOAL) * 100) + "%";
+  bar.classList.toggle("done", w >= GOAL);
+}
+function renderMeta() {
+  const t = todayKey();
+  $("#date-label").innerHTML = S.date === t ? `<strong>Today</strong>, ${longDate(S.date)}` : `<strong>${longDate(S.date)}</strong>`;
+  const { streak, credits } = computeStreak();
+  let s = streak === 0 ? "no streak yet" : `<strong>${streak}</strong> day${streak === 1 ? "" : "s"} running`;
+  if (credits > 0) s += ` <span class="repair">· ${credits} repair${credits === 1 ? "" : "s"} banked</span>`;
+  $("#streak-label").innerHTML = s;
+}
+function render() { renderCount(); renderMeta(); }
+
+function showView(name) {
+  flushSave();
+  for (const v of ["write", "history", "settings"]) $("#view-" + v).hidden = v !== name;
+  document.querySelectorAll("nav [data-view]").forEach((b) => b.toggleAttribute("aria-current", b.dataset.view === name));
+  if (name === "history") { S.month = S.month || parseKey(S.date); renderHistory(); }
+  if (name === "settings") { $("#reset-hour").value = S.resetHour; $("#acct").textContent = `Signed in as ${S.user.email}`; }
+}
+
+/* ---------- history ---------- */
+function renderHistory() {
+  const y = S.month.getFullYear(), m = S.month.getMonth();
+  $("#month-title").textContent = S.month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate();
+  const t = todayKey(); const { repaired } = computeStreak();
+  const g = $("#grid"); g.innerHTML = "";
+  for (const d of ["S", "M", "T", "W", "T", "F", "S"]) { const e = document.createElement("div"); e.className = "dow"; e.textContent = d; g.appendChild(e); }
+  for (let i = 0; i < first.getDay(); i++) { const e = document.createElement("div"); e.className = "day empty"; g.appendChild(e); }
+  let words = 0, done = 0;
+  for (let d = 1; d <= days; d++) {
+    const k = keyOf(new Date(y, m, d)); const w = S.index[k]?.words || 0;
+    const b = document.createElement("button"); b.className = "day";
+    if (k > t) { b.classList.add("future"); b.disabled = true; }
+    if (k === t) b.classList.add("today");
+    if (w >= 2 * GOAL) b.classList.add("done", "double"); else if (w >= GOAL) b.classList.add("done");
+    else if (w > 0) b.classList.add("partial"); else if (repaired.has(k)) b.classList.add("repaired");
+    b.innerHTML = `<span>${d}</span><i class="dot"></i>`;
+    b.title = w ? `${w} words` : "";
+    b.addEventListener("click", () => { openDay(k); showView("write"); });
+    g.appendChild(b);
+    words += w; if (w >= GOAL) done++;
+  }
+  const total = Object.values(S.index).reduce((a, v) => a + v.words, 0);
+  const totalDays = Object.values(S.index).filter((v) => v.words >= GOAL).length;
+  $("#totals").innerHTML = `This month: <strong>${words.toLocaleString()}</strong> words, <strong>${done}</strong> of ${days} days at 750+.<br>All time: <strong>${total.toLocaleString()}</strong> words across <strong>${totalDays}</strong> full days.`;
+}
+$("#prev-month").addEventListener("click", () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); renderHistory(); });
+$("#next-month").addEventListener("click", () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderHistory(); });
+
+/* ---------- text analysis (lexicon based, runs in the browser; nothing is sent anywhere) ---------- */
+const L = {
+  introvert: "i me my myself mine alone quiet inside inner private thought thoughts think reflect reflecting reflection journal solitude read reading book books calm silence silent home stay",
+  extrovert: "we us our you your they them people friends friend party talk talked talking told tell said say group team crowd everyone everybody together social meet met call texted text out going",
+  positive: "good great happy love loved loving joy joyful glad grateful thankful proud excited fun wonderful amazing beautiful best better nice enjoy enjoyed peaceful calm hope hopeful strong easy win won success smile laugh laughed sweet warm kind rest relaxed relax free lucky",
+  negative: "bad sad angry hate hated tired exhausted afraid scared worried worry anxious stress stressed frustrated annoyed hurt pain painful awful terrible worst worse ugly lost lose losing fail failed failure alone lonely sick hard difficult broke broken cry cried upset guilt guilty shame regret sorry never",
+  uncertain: "maybe perhaps might may could possibly probably guess wonder wondering unsure uncertain doubt doubtful seems seem somehow sort kind whatever if unclear confused confusing hmm idk dunno question questions",
+  certain: "definitely certainly absolutely always never obviously clearly sure surely know knew known exactly must will fact truth true certain confident decided decide right wrong yes no everything nothing all every",
+  thinking: "think thinking thought thoughts reason reasons because logic logical analyze analysis plan planning idea ideas figure understand understanding realize realized consider considering decide decision question why how problem solve solution strategy",
+  feeling: "feel feeling feelings felt heart love hate emotion emotional mood cry hurt happy sad angry afraid warm cold care caring miss missed want wanted need needed wish ache joy grief",
+};
+const FEEL = [
+  ["😢", "Sad", "sad sadness cry cried crying tears grief grieve lonely lost miss missed hopeless empty down blue depressed unhappy sorrow hurt"],
+  ["😤", "Frustrated", "frustrated frustrating frustration annoyed annoying irritated stuck ugh stupid pointless tired exhausted sick fed done over"],
+  ["😀", "Happy", "happy joy joyful glad excited fun laugh laughed smile smiling great wonderful amazing love enjoy enjoyed delighted cheerful lucky grateful thankful"],
+  ["😡", "Angry", "angry anger mad furious rage hate hated hatred pissed resent resentment bitter fight fought yelled yell screamed"],
+  ["😬", "Anxious", "anxious anxiety nervous worried worry worrying afraid fear scared panic stress stressed overwhelmed tense dread uneasy restless"],
+  ["👑", "Proud", "proud pride accomplished achieved achievement strong confident capable brave earned deserve deserved success succeeded nailed crushed"],
+];
+const TOPIC = [
+  ["🏆", "Success", "success succeed succeeded win won winning goal goals achieve achieved achievement accomplish accomplished progress improve improved improvement growth grow better best top ambition"],
+  ["🏢", "Work", "work working worked job boss office meeting meetings email emails client clients project projects deadline career company team manager coworker colleague business interview resume"],
+  ["🏖️", "Leisure", "vacation trip travel beach relax relaxing fun game games play played movie movies show watch watched music concert weekend hike walk park hobby read reading"],
+  ["🍎", "Eating", "eat ate eating food meal meals breakfast lunch dinner cook cooked cooking hungry snack coffee tea restaurant recipe kitchen delicious"],
+  ["🏠", "Home", "home house apartment room bed bedroom kitchen clean cleaning laundry chores rent moving neighborhood couch sleep slept"],
+  ["💰", "Money", "money cash dollars dollar pay paid paying bills bill budget salary rent debt loan bank savings save spend spent expensive cheap cost costs afford price"],
+  ["💀", "Death", "death die died dying dead funeral grave loss lost grief mortality cancer hospital sick illness"],
+  ["🙏", "Religion", "god pray prayer prayed faith church temple mandir mosque spiritual soul blessed bless bhagwan guru swami scripture meditation meditate worship"],
+  ["👨‍👩‍👧", "Family", "family mom mother dad father parents brother sister son daughter kids kid child children wife husband partner grandma grandpa cousin aunt uncle baby"],
+  ["⚔️", "Violence", "fight fought fighting war attack attacked kill killed violence violent hit punch hurt weapon gun knife blood enemy destroy"],
+];
+const TIME = [["⏪", "The Past", "was were had did been ago yesterday before last remember remembered used previously once then back earlier childhood"],
+              ["▶️", "The Present", "is am are now today currently here this present right doing being have has do does"],
+              ["⏩", "The Future", "will going tomorrow next soon later plan plans planning future hope hopefully eventually someday would gonna want wanna wish"]];
+const SENSE = [["👀", "Sight", "see saw seen look looked looking watch watched view bright dark light color colors red blue green black white eyes picture image visible shine"],
+               ["👂", "Hearing", "hear heard listen listened sound sounds loud quiet noise music song voice voices said says told talk talking silence ring"],
+               ["✋", "Touch", "touch touched feel felt hold held hand hands soft hard warm cold hot cool rough smooth skin hug hugged squeeze grip"],
+               ["👃", "Smell", "smell smelled smells scent scented fragrance stink stinks odor aroma taste tasted flavor sweet sour bitter salty"]];
+const US = [["☝️", "I", "i me my mine myself"], ["🤝", "We", "we us our ours ourselves"], ["👉", "You", "you your yours yourself yourselves"], ["👐", "They", "they them their theirs themselves he she him her his hers"]];
+const toSet = (s) => new Set(s.split(/\s+/));
+const LX = Object.fromEntries(Object.entries(L).map(([k, v]) => [k, toSet(v)]));
+const cat = (list) => list.map(([e, n, w]) => [e, n, toSet(w)]);
+const FEELX = cat(FEEL), TOPICX = cat(TOPIC), TIMEX = cat(TIME), SENSEX = cat(SENSE), USX = cat(US);
+
+function analyze(text) {
+  const toks = (text.toLowerCase().match(/[a-z']+/g) || []).map((w) => w.replace(/^'+|'+$/g, "")).filter(Boolean);
+  const cnt = (set) => toks.reduce((a, w) => a + (set.has(w) ? 1 : 0), 0);
+  const tally = (list) => list.map(([e, n, set]) => ({ e, n, c: cnt(set) }));
+  const pct = (a, b) => (a + b === 0 ? 0.5 : a / (a + b));
+  return {
+    words: toks.length,
+    mindset: [
+      ["Introvert", "Extrovert", pct(cnt(LX.introvert), cnt(LX.extrovert))],
+      ["Positive", "Negative", pct(cnt(LX.positive), cnt(LX.negative))],
+      ["Uncertain", "Certain", pct(cnt(LX.uncertain), cnt(LX.certain))],
+      ["Thinking", "Feeling", pct(cnt(LX.thinking), cnt(LX.feeling))],
+    ],
+    feel: tally(FEELX), topic: tally(TOPICX), time: tally(TIMEX), sense: tally(SENSEX), us: tally(USX),
+  };
+}
+
+/* ---------- stats rendering ---------- */
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function fmtTime(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase(); }
+
+function lineChart(tl, words) {
+  if (!tl || tl.length < 2) return "";
+  const W = 640, H = 260, px = 44, py = 16, pb = 30;
+  const maxX = Math.max(1, tl[tl.length - 1][0]);
+  const maxY = Math.max(900, Math.ceil(Math.max(words, ...tl.map((p) => p[1])) / 100) * 100 + 100);
+  const x = (m) => px + (m / maxX) * (W - px - 12);
+  const y = (w) => py + (1 - w / maxY) * (H - py - pb);
+  let g = "";
+  for (let v = 0; v <= maxY; v += 100) g += `<line class="grid" x1="${px}" x2="${W - 12}" y1="${y(v)}" y2="${y(v)}"/><text x="${px - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  const step = maxX > 60 ? 15 : maxX > 30 ? 5 : maxX > 12 ? 2 : 1;
+  for (let m = 0; m <= maxX; m += step) g += `<text x="${x(m)}" y="${H - 8}" text-anchor="middle">${m}</text>`;
+  const d = tl.map((p, i) => (i ? "L" : "M") + x(p[0]).toFixed(1) + " " + y(p[1]).toFixed(1)).join(" ");
+  const last = tl[tl.length - 1];
+  return `<svg class="line-chart" viewBox="0 0 ${W} ${H}">${g}<line class="grid goal" x1="${px}" x2="${W - 12}" y1="${y(GOAL)}" y2="${y(GOAL)}"/><path d="${d}"/><circle cx="${x(last[0])}" cy="${y(last[1])}" r="4" fill="var(--done)"/></svg>`;
+}
+function donut(a, b, p) {
+  const r = 40, c = 2 * Math.PI * r, name = p >= 0.5 ? a : b, other = p >= 0.5 ? b : a, share = p >= 0.5 ? p : 1 - p;
+  return `<div class="donut"><div class="name">${name}</div><div class="vs">vs ${other}</div>
+    <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="${r}"/><circle class="fill" cx="50" cy="50" r="${r}" stroke-dasharray="${(share * c).toFixed(1)} ${c.toFixed(1)}"/></svg></div>`;
+}
+function bars(title, items) {
+  const max = Math.max(1, ...items.map((i) => i.c));
+  const top = items.reduce((a, b) => (b.c > a.c ? b : a), items[0]);
+  const lead = top.c === 0 ? "Nothing in particular" : `${top.e} ${top.n}`;
+  return `<div><h3>${title}</h3><p class="lead">${lead}</p><div class="bars">${items.map((i) => `<div class="b${i.c && i === top ? " top" : ""}"><i style="height:${(i.c / max) * 100}%"></i><span>${i.e}</span><small>${i.c}</small></div>`).join("")}</div></div>`;
+}
+
+function renderStats() {
+  const e = S.entry, a = analyze(e.text || "");
+  const mins = e.startedAt ? Math.max(1, ((e.updatedAt || Date.now()) - e.startedAt) / 60000) : 0;
+  const wpm = mins ? Math.round(e.words / mins) : 0;
+  const to750 = e.doneAt && e.startedAt ? Math.round((e.doneAt - e.startedAt) / 60000) : null;
+  const sub = e.startedAt
+    ? [`${wpm} words per minute`, `${e.distractions || 0} distraction${e.distractions === 1 ? "" : "s"}`, to750 !== null ? `${to750} minute${to750 === 1 ? "" : "s"} to 750 words` : "750 not reached yet"].join(" · ")
+    : "Timing only tracks on the day you write it.";
+  const head = e.startedAt ? `You wrote ${e.words.toLocaleString()} words starting ${fmtTime(e.startedAt)}` : `${e.words.toLocaleString()} words`;
+  let ai = "";
+  if (AI_ENDPOINT) {
+    ai = `<div class="block"><h3>Summary</h3>${e.summary ? `<div class="summary">${esc(e.summary)}</div>` : ""}
+      <div class="summary-actions"><button class="btn quiet" id="btn-summary" ${e.words < 50 ? "disabled" : ""}>${e.summary ? "Summarize again" : "Summarize with AI"}</button><span id="summary-msg"></span></div></div>`;
+  }
+  $("#stats").innerHTML = `
+    <h2>${head}</h2><p class="sub">${sub}</p>
+    ${lineChart(e.timeline, e.words)}
+    <div class="block"><h3>Mindset while writing</h3><div class="row">${a.mindset.map((m) => donut(...m)).join("")}</div></div>
+    <div class="block row">${bars("Feeling mostly", a.feel)}${bars("Thinking mostly about", a.topic)}</div>
+    <div class="block row">${bars("Time orientation", a.time)}${bars("Primary sense", a.sense)}${bars("Us and them", a.us)}</div>
+    ${ai}`;
+  $("#btn-summary")?.addEventListener("click", summarize);
+}
+$("#btn-stats").addEventListener("click", () => {
+  const st = $("#stats");
+  st.hidden = !st.hidden;
+  $("#btn-stats").textContent = st.hidden ? "Stats" : "Hide stats";
+  if (!st.hidden) { renderStats(); st.scrollIntoView({ behavior: "smooth", block: "start" }); }
+});
+
+async function summarize() {
+  const btn = $("#btn-summary"), msg = $("#summary-msg");
+  btn.disabled = true; msg.textContent = "thinking";
+  try {
+    const token = await S.user.getIdToken();
+    const r = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ text: S.entry.text, date: S.date }) });
+    if (!r.ok) throw new Error(await r.text());
+    const { summary } = await r.json();
+    S.entry.summary = summary; S.dirty = true; flushSave();
+    renderStats();
+  } catch (err) { msg.textContent = "couldn't summarize: " + (err.message || err).slice(0, 120); btn.disabled = false; }
+}
+
+/* ---------- settings ---------- */
+$("#reset-hour").addEventListener("change", async (ev) => {
+  S.resetHour = Number(ev.target.value);
+  await setDoc(userDoc(), { resetHour: S.resetHour }, { merge: true });
+  if (!S.index[S.date] && S.date !== todayKey()) await openDay(todayKey());
+  renderMeta();
+});
+$("#btn-export").addEventListener("click", async () => {
+  const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
+  const out = {}; snap.forEach((d) => (out[d.id] = d.data()));
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `750-${todayKey()}.json`; a.click();
+});
+
+/* ---------- auth & boot ---------- */
+document.querySelectorAll("nav [data-view]").forEach((b) => b.addEventListener("click", async () => {
+  if (b.dataset.view === "write" && S.date !== todayKey()) await openDay(todayKey());
+  showView(b.dataset.view);
+}));
+$("#brand").addEventListener("click", async (ev) => { ev.preventDefault(); if (S.date !== todayKey()) await openDay(todayKey()); showView("write"); });
+$("#editor").addEventListener("input", onInput);
+window.addEventListener("resize", autosize);
+
+$("#btn-signin").addEventListener("click", async () => {
+  $("#signin-msg").textContent = "";
+  try { await setPersistence(auth, browserLocalPersistence); await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (err) { $("#signin-msg").textContent = "Sign-in didn't complete: " + err.code; }
+});
+$("#btn-signout").addEventListener("click", async () => { flushSave(); await signOut(auth); });
+
+onAuthStateChanged(auth, async (user) => {
+  if (user && ALLOWED_EMAILS.length && !ALLOWED_EMAILS.includes(user.email)) {
+    await signOut(auth); $("#signin-msg").textContent = "That account isn't on the list."; return;
+  }
+  S.user = user;
+  $("#signin").hidden = !!user; $("#app").hidden = !user;
+  if (!user) { $("#bar").style.width = "0%"; return; }
+  const u = await getDoc(userDoc());
+  S.resetHour = u.exists() ? (u.data().resetHour || 0) : 0;
+  await loadIndex();
+  await openDay(todayKey());
+  showView("write");
+  $("#editor").focus();
+});
+
+</script>
+</body>
+</html>
