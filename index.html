@@ -115,6 +115,22 @@
   .bars .b span { font-size: 1.15rem; margin-top: .4rem; line-height: 1; }
   .bars .b small { font-size: .7rem; color: var(--muted); margin-top: .2rem; }
 
+  [data-hint] { cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: .2em; }
+  .hint { color: var(--muted); font-size: .9rem; margin: .25rem 0 .5rem; }
+  .sub span + span::before { content: " · "; }
+  #stats-locked { color: var(--muted); }
+
+  #cheer { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+           background: color-mix(in srgb, var(--paper) 70%, transparent); z-index: 10; padding: 1rem; }
+  #cheer .card { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 2rem 2.25rem; max-width: 24rem; width: 100%;
+                 box-shadow: 0 20px 60px rgba(0,0,0,.18); text-align: center; }
+  #cheer .big { font-size: 4rem; font-weight: 600; line-height: 1; color: var(--done); letter-spacing: -.02em; }
+  #cheer p { color: var(--muted); margin: .75rem 0 1.5rem; }
+  #cheer .actions { display: flex; gap: .75rem; justify-content: center; }
+  @media (prefers-reduced-motion: no-preference) {
+    #cheer .card { animation: pop .35s cubic-bezier(.2,.9,.3,1.2); }
+    @keyframes pop { from { transform: scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+  }
   .summary { background: var(--soft); padding: 1rem 1.15rem; border-radius: 6px; white-space: pre-wrap; }
   .summary-actions { margin-top: .75rem; display: flex; gap: 1rem; align-items: baseline; color: var(--muted); font-size: .95rem; }
 
@@ -198,7 +214,8 @@
         <span class="count" id="count">0 words</span>
         <span class="right">
           <span id="save-status"></span>
-          <button id="btn-stats">Stats</button>
+          <span id="stats-locked">stats unlock at 750</span>
+          <button id="btn-stats" hidden>Stats</button>
         </span>
       </footer>
       <section id="stats" hidden></section>
@@ -260,18 +277,28 @@
     </div>
   </section>
 </main>
+<div id="cheer" hidden role="dialog" aria-modal="true" aria-labelledby="cheer-title">
+  <div class="card">
+    <div class="big" id="cheer-title">750</div>
+    <p id="cheer-sub"></p>
+    <div class="actions">
+      <button class="btn quiet" id="cheer-close">Keep writing</button>
+      <button class="btn" id="cheer-stats">See stats</button>
+    </div>
+  </div>
+</div>
 <script type="module">
 /* ========== CONFIG — fill these in (see README) ========== */
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_ME",
-  authDomain: "PASTE_ME.firebaseapp.com",
-  projectId: "PASTE_ME",
-  appId: "PASTE_ME",
+  apiKey: "AIzaSyChEplpjRUGuaY08Wb6YJp9QCEO4fUc0ys",
+  authDomain: "seven-fifty-f93ef.firebaseapp.com",
+  projectId: "seven-fifty-f93ef",
+  appId: "1:588056296750:web:a7114ea28af831a9c50ebf",
 };
 // Optional: only these Google accounts may sign in. Empty = anyone (each person still only sees their own entries).
 const ALLOWED_EMAILS = [];
 // Optional: URL of the AI summary worker (see worker.js). Leave empty to hide the summarize button.
-const AI_ENDPOINT = "";
+const AI_ENDPOINT = "https://seven-fifty-ai.sankalp-tank.workers.dev";
 const GOAL = 750;
 /* ========================================================= */
 
@@ -341,7 +368,7 @@ async function openDay(k) {
   // Local backup wins if newer (unsaved work from a lost connection).
   try {
     const bk = JSON.parse(localStorage.getItem("750:" + k) || "null");
-    if (bk && bk.updatedAt > (S.entry.updatedAt || 0) && bk.text.length >= (S.entry.text || "").length) { S.entry.text = bk.text; S.dirty = true; }
+    if (bk && bk.updatedAt > (S.entry.updatedAt || 0) && bk.text.length >= (S.entry.text || "").length) { S.entry.text = bk.text; S.entry.words = countWords(bk.text); S.dirty = true; }
   } catch {}
   $("#editor").value = S.entry.text || "";
   $("#stats").hidden = true; $("#btn-stats").textContent = "Stats";
@@ -371,7 +398,8 @@ async function save() {
     renderMeta();
   } catch (e) {
     S.dirty = true;
-    $("#save-status").textContent = "not saved — check your connection";
+    console.error("save failed", e);
+    $("#save-status").textContent = "not saved (" + (e.code || e.message || "unknown error") + ")";
     $("#save-status").className = "save-err";
     scheduleSave(5000);
   }
@@ -383,6 +411,7 @@ function onInput() {
   const words = countWords(text);
   const now = Date.now();
   const e = S.entry;
+  const before = e.words || 0;
   e.text = text; e.words = words;
   if (S.date === todayKey()) {
     if (words > 0 && !e.startedAt) e.startedAt = now;
@@ -390,10 +419,11 @@ function onInput() {
     if (e.startedAt) {
       const mins = +((now - e.startedAt) / 60000).toFixed(2);
       e.timeline = e.timeline || [];
-      if (now - S.lastPoint > 15000 || e.timeline.length === 0) { e.timeline.push([mins, words]); S.lastPoint = now; }
-      else e.timeline[e.timeline.length - 1] = [mins, words];
+      if (now - S.lastPoint > 15000 || e.timeline.length === 0) { e.timeline.push({ m: mins, w: words }); S.lastPoint = now; }
+      else e.timeline[e.timeline.length - 1] = { m: mins, w: words };
     }
   }
+  if (before < GOAL && words >= GOAL && !e.celebrated) { e.celebrated = true; celebrate(); }
   S.dirty = true;
   try { localStorage.setItem("750:" + S.date, JSON.stringify({ text, updatedAt: now })); } catch {}
   renderCount();
@@ -437,7 +467,31 @@ function renderCount() {
   const bar = $("#bar");
   bar.style.width = Math.min(100, (w / GOAL) * 100) + "%";
   bar.classList.toggle("done", w >= GOAL);
+  const unlocked = w >= GOAL;
+  $("#btn-stats").hidden = !unlocked;
+  $("#stats-locked").hidden = unlocked;
+  if (!unlocked && !$("#stats").hidden) { $("#stats").hidden = true; $("#btn-stats").textContent = "Stats"; }
 }
+
+/* ---------- 750 popup ---------- */
+function celebrate() {
+  const e = S.entry, { streak } = computeStreak();
+  const bits = [];
+  const s = streak + (S.index[S.date]?.words >= GOAL ? 0 : 1);
+  bits.push(s === 1 ? "Day one of a streak." : `${s} days running.`);
+  if (e.startedAt && e.doneAt) {
+    const mins = Math.max(1, Math.round((e.doneAt - e.startedAt) / 60000));
+    bits.push(`${mins} minute${mins === 1 ? "" : "s"}, ${Math.round(GOAL / mins)} words a minute.`);
+  }
+  $("#cheer-sub").textContent = bits.join(" ");
+  $("#cheer").hidden = false;
+  $("#cheer-close").focus();
+}
+function closeCheer() { $("#cheer").hidden = true; $("#editor").focus(); }
+$("#cheer-close").addEventListener("click", closeCheer);
+$("#cheer").addEventListener("click", (ev) => { if (ev.target.id === "cheer") closeCheer(); });
+$("#cheer-stats").addEventListener("click", () => { closeCheer(); $("#btn-stats").click(); });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("#cheer").hidden) closeCheer(); });
 function renderMeta() {
   const t = todayKey();
   $("#date-label").innerHTML = S.date === t ? `<strong>Today</strong>, ${longDate(S.date)}` : `<strong>${longDate(S.date)}</strong>`;
@@ -549,11 +603,35 @@ function analyze(text) {
 }
 
 /* ---------- stats rendering ---------- */
+const HINT = {
+  chart: "Your word count over time, from your first word today. The dotted line is 750.",
+  wpm: "Words divided by minutes since your first word today, including pauses.",
+  distractions: "Times you switched away from this tab before reaching 750.",
+  to750: "Minutes from your first word to your 750th.",
+  Introvert: "Words about yourself and your inner life versus other people and social activity.",
+  Positive: "Upbeat words (glad, easy, win) versus downbeat ones (tired, hard, lost).",
+  Uncertain: "Hedging words (maybe, might, guess) versus definite ones (always, definitely, know).",
+  Thinking: "Reasoning and planning words versus emotion words.",
+  feel: "Which emotion's vocabulary shows up most. Counts are matching words.",
+  topic: "Which subject's vocabulary shows up most.",
+  time: "Past, present, or future: tense and time words.",
+  sense: "Which sense you describe with most.",
+  us: "Which pronouns you lean on: I, we, you, or they.",
+  method: "All of these are word-list matches, like the original site. A rough mirror, not a diagnosis. Hover or tap a label for what it counts.",
+};
+document.addEventListener("click", (ev) => {
+  const el = ev.target.closest("[data-hint]"); if (!el) return;
+  const next = el.nextElementSibling;
+  if (next && next.classList.contains("hint")) { next.remove(); return; }
+  const p = document.createElement("p"); p.className = "hint"; p.textContent = HINT[el.dataset.hint] || ""; el.after(p);
+});
+const hint = (key) => `data-hint="${key}" title="${esc(HINT[key])}"`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function fmtTime(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase(); }
 
 function lineChart(tl, words) {
-  if (!tl || tl.length < 2) return "";
+  tl = (tl || []).map((p) => (Array.isArray(p) ? [p[0], p[1]] : [p.m, p.w]));
+  if (tl.length < 2) return "";
   const W = 640, H = 260, px = 44, py = 16, pb = 30;
   const maxX = Math.max(1, tl[tl.length - 1][0]);
   const maxY = Math.max(900, Math.ceil(Math.max(words, ...tl.map((p) => p[1])) / 100) * 100 + 100);
@@ -569,14 +647,14 @@ function lineChart(tl, words) {
 }
 function donut(a, b, p) {
   const r = 40, c = 2 * Math.PI * r, name = p >= 0.5 ? a : b, other = p >= 0.5 ? b : a, share = p >= 0.5 ? p : 1 - p;
-  return `<div class="donut"><div class="name">${name}</div><div class="vs">vs ${other}</div>
+  return `<div class="donut"><div class="name" ${hint(a)}>${name}</div><div class="vs">vs ${other} · ${Math.round(share * 100)}%</div>
     <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="${r}"/><circle class="fill" cx="50" cy="50" r="${r}" stroke-dasharray="${(share * c).toFixed(1)} ${c.toFixed(1)}"/></svg></div>`;
 }
-function bars(title, items) {
+function bars(title, key, items) {
   const max = Math.max(1, ...items.map((i) => i.c));
   const top = items.reduce((a, b) => (b.c > a.c ? b : a), items[0]);
   const lead = top.c === 0 ? "Nothing in particular" : `${top.e} ${top.n}`;
-  return `<div><h3>${title}</h3><p class="lead">${lead}</p><div class="bars">${items.map((i) => `<div class="b${i.c && i === top ? " top" : ""}"><i style="height:${(i.c / max) * 100}%"></i><span>${i.e}</span><small>${i.c}</small></div>`).join("")}</div></div>`;
+  return `<div><h3 ${hint(key)}>${title}</h3><p class="lead">${lead}</p><div class="bars">${items.map((i) => `<div class="b${i.c && i === top ? " top" : ""}" title="${i.n}: ${i.c} word${i.c === 1 ? "" : "s"}"><i style="height:${(i.c / max) * 100}%"></i><span>${i.e}</span><small>${i.c}</small></div>`).join("")}</div></div>`;
 }
 
 function renderStats() {
@@ -585,7 +663,8 @@ function renderStats() {
   const wpm = mins ? Math.round(e.words / mins) : 0;
   const to750 = e.doneAt && e.startedAt ? Math.round((e.doneAt - e.startedAt) / 60000) : null;
   const sub = e.startedAt
-    ? [`${wpm} words per minute`, `${e.distractions || 0} distraction${e.distractions === 1 ? "" : "s"}`, to750 !== null ? `${to750} minute${to750 === 1 ? "" : "s"} to 750 words` : "750 not reached yet"].join(" · ")
+    ? [`<span ${hint("wpm")}>${wpm} words per minute</span>`, `<span ${hint("distractions")}>${e.distractions || 0} distraction${e.distractions === 1 ? "" : "s"}</span>`,
+       to750 !== null ? `<span ${hint("to750")}>${to750} minute${to750 === 1 ? "" : "s"} to 750 words</span>` : "<span>750 not reached yet</span>"].join("")
     : "Timing only tracks on the day you write it.";
   const head = e.startedAt ? `You wrote ${e.words.toLocaleString()} words starting ${fmtTime(e.startedAt)}` : `${e.words.toLocaleString()} words`;
   let ai = "";
@@ -595,10 +674,10 @@ function renderStats() {
   }
   $("#stats").innerHTML = `
     <h2>${head}</h2><p class="sub">${sub}</p>
-    ${lineChart(e.timeline, e.words)}
-    <div class="block"><h3>Mindset while writing</h3><div class="row">${a.mindset.map((m) => donut(...m)).join("")}</div></div>
-    <div class="block row">${bars("Feeling mostly", a.feel)}${bars("Thinking mostly about", a.topic)}</div>
-    <div class="block row">${bars("Time orientation", a.time)}${bars("Primary sense", a.sense)}${bars("Us and them", a.us)}</div>
+    ${lineChart(e.timeline, e.words) ? `<div ${hint("chart")} style="display:inline-block">${lineChart(e.timeline, e.words)}</div>` : ""}
+    <div class="block"><h3 ${hint("method")}>Mindset while writing</h3><div class="row">${a.mindset.map((m) => donut(...m)).join("")}</div></div>
+    <div class="block row">${bars("Feeling mostly", "feel", a.feel)}${bars("Thinking mostly about", "topic", a.topic)}</div>
+    <div class="block row">${bars("Time orientation", "time", a.time)}${bars("Primary sense", "sense", a.sense)}${bars("Us and them", "us", a.us)}</div>
     ${ai}`;
   $("#btn-summary")?.addEventListener("click", summarize);
 }
@@ -616,7 +695,7 @@ async function summarize() {
     const token = await S.user.getIdToken();
     const r = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
       body: JSON.stringify({ kind: "day", label: longDate(S.date), entries: [{ date: S.date, text: S.entry.text }] }) });
-    if (!r.ok) throw new Error(await r.text());
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     const { summary } = await r.json();
     S.entry.summary = summary; S.dirty = true; flushSave();
     renderStats();

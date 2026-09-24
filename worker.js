@@ -1,10 +1,14 @@
 // AI summary endpoint for /750 — runs on Cloudflare Workers (free tier is plenty).
 // Secrets to set:  ANTHROPIC_API_KEY, FIREBASE_API_KEY (same "apiKey" as in index.html), ALLOWED_EMAILS (comma-separated)
-// Vars to set:     ALLOWED_ORIGIN = https://sankalptank.com
+// Vars to set:     ALLOWED_ORIGIN = https://sankalptank.com  (comma-separate several; www. is accepted automatically)
 export default {
   async fetch(req, env) {
+    const origin = req.headers.get("Origin") || "";
+    const allowedOrigins = (env.ALLOWED_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const originOk = !allowedOrigins.length || allowedOrigins.some((o) => origin === o || origin === o.replace("://", "://www."));
     const cors = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
+      "Access-Control-Allow-Origin": originOk ? origin || "*" : allowedOrigins[0],
+      "Vary": "Origin",
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
     };
