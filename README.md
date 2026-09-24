@@ -45,6 +45,7 @@ The worker checks the Firebase login token with Google before calling the model,
 - **Repairs**: a 1500-word day earns one repair, which covers the most recent missed day before it. Unused repairs show as "banked" next to the streak.
 - **Stats** (button under the editor): words-over-time chart, words per minute, distractions (times you left the tab before hitting 750), minutes to 750, and the mindset/feeling/topic/time/sense/pronoun breakdowns. The breakdowns are word-list based, like the original site — a rough mirror, not a diagnosis. Timing stats only record on the day you're writing; you can still edit old days.
 - **Autosave** every ~1 second; ⌘S / Ctrl+S forces it. A copy is also kept in the browser in case the connection drops, and it is restored next time you open that day.
-- **History**: month grid, click any day to read or edit it.
+- **History**: month grid, click any day to read or edit it. With AI set up, a Summaries box under the grid summarizes any week (Sunday to Saturday) or the whole month; results are saved so you only pay once.
+- **Import**: Settings → Import past entries. Takes a 750words.com export (.txt), this site's own .json, or .txt/.md files named by date or split by `## YYYY-MM-DD` headings. Existing days with more words are kept unless you tick Replace.
 - **Export**: Settings → download everything as JSON.
 - **Privacy**: the page is `noindex`; Firestore rules restrict reads to your own account; the AI worker only accepts your account. Entries never touch any server except your own Firebase project (and the model, only for summaries you request).

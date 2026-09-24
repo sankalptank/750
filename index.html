@@ -62,7 +62,7 @@
 
   textarea#editor {
     display: block; width: 100%; min-height: 55vh; resize: none; border: 0; background: transparent;
-    padding: 0; font-size: 1.22rem; line-height: 1.65; overflow: hidden;
+    padding: 0; font-size: 1.22rem; line-height: 1.65; overflow: hidden; field-sizing: content;
   }
   textarea#editor::placeholder { color: var(--muted); font-style: italic; opacity: .8; }
   textarea#editor:focus { outline: none; }
@@ -152,6 +152,10 @@
   .field p { color: var(--muted); margin: 0 0 .6rem; }
   select { padding: .4rem .6rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); }
   .notice { color: var(--muted); font-size: .95rem; }
+  input[type="file"] { display: block; margin: .5rem 0; max-width: 100%; }
+  .check { display: flex; align-items: center; gap: .5rem; margin: .5rem 0 .75rem; }
+  .period-controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .period-out .summary + .summary { margin-top: .75rem; }
 
   @media (max-width: 600px) {
     main { padding-top: 1.5rem; }
@@ -214,6 +218,15 @@
         <span><i class="dot partial"></i> some words</span>
       </div>
       <p class="totals" id="totals"></p>
+      <div class="block" id="period" hidden>
+        <h3>Summaries</h3>
+        <div class="period-controls">
+          <select id="period-select"></select>
+          <button class="btn quiet" id="btn-period">Summarize</button>
+          <span class="notice" id="period-msg"></span>
+        </div>
+        <div class="period-out" id="period-out"></div>
+      </div>
     </div>
 
     <div id="view-settings" hidden>
@@ -231,6 +244,14 @@
         <p>750 words keeps the streak. A 1500-word day earns one repair, which covers the most recent missed day after it. Repairs don't stack forever: each 1500-word day covers one gap.</p>
       </div>
       <div class="field">
+        <label for="import-files">Import past entries</label>
+        <p>For a single day, open it in History and type. For a batch, choose files here. Accepted: a 750words.com export (.txt), a .json downloaded from this site, or .txt/.md files named by date (2026-09-01.md) or split by <code>## 2026-09-01</code> headings.</p>
+        <input type="file" id="import-files" multiple accept=".txt,.md,.json,text/plain,application/json">
+        <label class="check"><input type="checkbox" id="import-overwrite"> Replace days that already have more words</label>
+        <button class="btn quiet" id="btn-import" disabled>Import</button>
+        <p class="notice" id="import-msg"></p>
+      </div>
+      <div class="field">
         <label>Your data</label>
         <p>Entries are stored in your own Firebase project, readable only by your account. Download everything any time.</p>
         <button class="btn quiet" id="btn-export">Download all entries (.json)</button>
@@ -242,22 +263,22 @@
 <script type="module">
 /* ========== CONFIG — fill these in (see README) ========== */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyChEplpjRUGuaY08Wb6YJp9QCEO4fUc0ys",
-  authDomain: "seven-fifty-f93ef.firebaseapp.com",
-  projectId: "seven-fifty-f93ef",
-  appId: "1:588056296750:web:a7114ea28af831a9c50ebf",
+  apiKey: "PASTE_ME",
+  authDomain: "PASTE_ME.firebaseapp.com",
+  projectId: "PASTE_ME",
+  appId: "PASTE_ME",
 };
 // Optional: only these Google accounts may sign in. Empty = anyone (each person still only sees their own entries).
 const ALLOWED_EMAILS = [];
 // Optional: URL of the AI summary worker (see worker.js). Leave empty to hide the summarize button.
-const AI_ENDPOINT = "https://seven-fifty-ai.sankalp-tank.workers.dev";
+const AI_ENDPOINT = "";
 const GOAL = 750;
 /* ========================================================= */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs }
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, writeBatch, query, where, documentId }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const $ = (s) => document.querySelector(s);
@@ -380,10 +401,20 @@ function onInput() {
   scheduleSave();
 }
 
+// Grow the textarea to fit without letting the page jump. Resetting height to "auto" briefly
+// shrinks the document, which makes the browser snap the scroll position to the caret; we
+// restore the scroll position right after, and skip the whole thing where the browser can
+// size the field itself.
+const NATIVE_SIZING = CSS.supports("field-sizing", "content");
 function autosize() {
   const ta = $("#editor");
+  if (NATIVE_SIZING) return;
+  const y = window.scrollY;
+  const prev = ta.style.height;
   ta.style.height = "auto";
-  ta.style.height = Math.max(ta.scrollHeight, window.innerHeight * 0.55) + "px";
+  const h = Math.max(ta.scrollHeight, window.innerHeight * 0.55) + "px";
+  ta.style.height = h === prev ? prev : h;
+  window.scrollTo(0, y);
 }
 
 document.addEventListener("visibilitychange", () => {
@@ -450,6 +481,7 @@ function renderHistory() {
   }
   const total = Object.values(S.index).reduce((a, v) => a + v.words, 0);
   const totalDays = Object.values(S.index).filter((v) => v.words >= GOAL).length;
+  renderPeriodOptions(y, m, first, days, t);
   $("#totals").innerHTML = `This month: <strong>${words.toLocaleString()}</strong> words, <strong>${done}</strong> of ${days} days at 750+.<br>All time: <strong>${total.toLocaleString()}</strong> words across <strong>${totalDays}</strong> full days.`;
 }
 $("#prev-month").addEventListener("click", () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); renderHistory(); });
@@ -583,13 +615,118 @@ async function summarize() {
   try {
     const token = await S.user.getIdToken();
     const r = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-      body: JSON.stringify({ text: S.entry.text, date: S.date }) });
+      body: JSON.stringify({ kind: "day", label: longDate(S.date), entries: [{ date: S.date, text: S.entry.text }] }) });
     if (!r.ok) throw new Error(await r.text());
     const { summary } = await r.json();
     S.entry.summary = summary; S.dirty = true; flushSave();
     renderStats();
   } catch (err) { msg.textContent = "couldn't summarize: " + (err.message || err).slice(0, 120); btn.disabled = false; }
 }
+
+/* ---------- week / month summaries ---------- */
+const shortDate = (k) => parseKey(k).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function renderPeriodOptions(y, m, first, days, t) {
+  const box = $("#period"); if (!AI_ENDPOINT) { box.hidden = true; return; }
+  box.hidden = false;
+  const sel = $("#period-select"); sel.innerHTML = "";
+  const mk = `${y}-${pad(m + 1)}`;
+  const opts = [];
+  if (`${mk}-01` <= t) opts.push({ id: "month-" + mk, label: `Whole month: ${S.month.toLocaleDateString(undefined, { month: "long" })}`, start: `${mk}-01`, end: `${mk}-${pad(days)}` });
+  // Weeks are the grid rows: Sunday to Saturday.
+  let start = shiftKey(keyOf(first), -first.getDay());
+  while (start <= `${mk}-${pad(days)}`) {
+    const end = shiftKey(start, 6);
+    if (start <= t) opts.push({ id: "week-" + start, label: `Week of ${shortDate(start)} to ${shortDate(end)}`, start, end });
+    start = shiftKey(start, 7);
+  }
+  for (const o of opts) { const el = document.createElement("option"); el.value = o.id; el.textContent = o.label; el.dataset.start = o.start; el.dataset.end = o.end; sel.appendChild(el); }
+  $("#period-out").innerHTML = ""; $("#period-msg").textContent = "";
+  showPeriodSummary();
+}
+const periodDoc = (id) => doc(db, "users", S.user.uid, "summaries", id);
+async function showPeriodSummary() {
+  const sel = $("#period-select"); const id = sel.value; if (!id) return;
+  const out = $("#period-out"); out.innerHTML = "";
+  const snap = await getDoc(periodDoc(id));
+  if (snap.exists() && sel.value === id) { out.innerHTML = `<div class="summary">${esc(snap.data().summary)}</div>`; $("#btn-period").textContent = "Summarize again"; }
+  else $("#btn-period").textContent = "Summarize";
+}
+$("#period-select").addEventListener("change", showPeriodSummary);
+$("#btn-period").addEventListener("click", async () => {
+  const sel = $("#period-select"), opt = sel.selectedOptions[0]; if (!opt) return;
+  const btn = $("#btn-period"), msg = $("#period-msg");
+  btn.disabled = true; msg.textContent = "gathering entries";
+  try {
+    const q = query(collection(db, "users", S.user.uid, "entries"), where(documentId(), ">=", opt.dataset.start), where(documentId(), "<=", opt.dataset.end));
+    const snap = await getDocs(q);
+    const entries = []; snap.forEach((d) => { const v = d.data(); if ((v.text || "").trim()) entries.push({ date: d.id, text: v.text }); });
+    if (!entries.length) throw new Error("nothing written in that range");
+    msg.textContent = `thinking about ${entries.length} day${entries.length === 1 ? "" : "s"}`;
+    const token = await S.user.getIdToken();
+    const r = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ kind: opt.value.startsWith("month") ? "month" : "week", label: opt.textContent, entries }) });
+    if (!r.ok) throw new Error(await r.text());
+    const { summary } = await r.json();
+    await setDoc(periodDoc(opt.value), { summary, start: opt.dataset.start, end: opt.dataset.end, days: entries.length, updatedAt: Date.now() });
+    msg.textContent = "";
+    await showPeriodSummary();
+  } catch (err) { msg.textContent = "couldn't summarize: " + (err.message || err).slice(0, 120); }
+  btn.disabled = false;
+});
+
+/* ---------- import past entries ---------- */
+const DATE_RE = /(\d{4})-(\d{2})-(\d{2})/;
+function parseImport(name, raw) {
+  const out = {};
+  const put = (k, text) => { text = (text || "").trim(); if (k && text) out[k] = (out[k] ? out[k] + "\n\n" : "") + text; };
+  if (name.toLowerCase().endsWith(".json")) {
+    const j = JSON.parse(raw);
+    for (const [k, v] of Object.entries(j)) if (DATE_RE.test(k)) put(k, typeof v === "string" ? v : v.text);
+    return out;
+  }
+  // 750words.com export: blocks headed by "------ ENTRY ------" then "Date: YYYY-MM-DD".
+  if (/-{3,}\s*ENTRY\s*-{3,}/i.test(raw)) {
+    for (const block of raw.split(/-{3,}\s*ENTRY\s*-{3,}/i)) {
+      const m = block.match(/Date:\s*(\d{4}-\d{2}-\d{2})/i); if (!m) continue;
+      const body = block.replace(/^\s*(Date|Words|Minutes):.*$/gim, "");
+      put(m[1], body);
+    }
+    return out;
+  }
+  // Markdown split by dated headings.
+  const parts = raw.split(/^#{1,3}\s*(\d{4}-\d{2}-\d{2}).*$/m);
+  if (parts.length > 2) { for (let i = 1; i < parts.length; i += 2) put(parts[i], parts[i + 1]); return out; }
+  // Whole file is one day, dated by its filename.
+  const fm = name.match(DATE_RE); if (fm) put(fm[0], raw);
+  return out;
+}
+$("#import-files").addEventListener("change", (ev) => { $("#btn-import").disabled = !ev.target.files.length; $("#import-msg").textContent = ""; });
+$("#btn-import").addEventListener("click", async () => {
+  const files = [...$("#import-files").files], overwrite = $("#import-overwrite").checked, msg = $("#import-msg");
+  $("#btn-import").disabled = true; msg.textContent = "reading files";
+  try {
+    const merged = {};
+    for (const f of files) {
+      const parsed = parseImport(f.name, await f.text());
+      for (const [k, text] of Object.entries(parsed)) merged[k] = merged[k] ? merged[k] + "\n\n" + text : text;
+    }
+    const keys = Object.keys(merged).filter((k) => k <= todayKey()).sort();
+    if (!keys.length) throw new Error("no dated entries found in those files");
+    let written = 0, skipped = 0, batch = writeBatch(db), n = 0;
+    for (const k of keys) {
+      const words = countWords(merged[k]);
+      if (!overwrite && (S.index[k]?.words || 0) >= words) { skipped++; continue; }
+      batch.set(entryDoc(k), { text: merged[k], words, updatedAt: Date.now(), imported: true }, { merge: true });
+      S.index[k] = { words, doneAt: null }; written++;
+      if (++n === 400) { await batch.commit(); batch = writeBatch(db); n = 0; }
+    }
+    if (n) await batch.commit();
+    msg.textContent = `Imported ${written} day${written === 1 ? "" : "s"}` + (skipped ? `, skipped ${skipped} that already had as many or more words` : "") + ".";
+    if (S.entry && merged[S.date] && (overwrite || S.entry.words < countWords(merged[S.date]))) await openDay(S.date);
+    renderMeta();
+  } catch (err) { msg.textContent = "Import failed: " + (err.message || err); }
+  $("#btn-import").disabled = false;
+});
 
 /* ---------- settings ---------- */
 $("#reset-hour").addEventListener("change", async (ev) => {
