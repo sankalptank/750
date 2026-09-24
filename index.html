@@ -75,6 +75,9 @@
   footer.status button { color: var(--muted); }
   footer.status button:hover { color: var(--ink); }
   .save-err { color: var(--warn); }
+  #problem { background: var(--soft); border-left: 3px solid var(--warn); padding: .75rem 1rem; margin-bottom: 1.5rem;
+             font-size: .95rem; color: var(--ink); white-space: pre-wrap; }
+  #problem code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; }
 
   /* Sign-in */
   #signin { padding-top: 18vh; }
@@ -203,6 +206,8 @@
         <button id="btn-signout">Sign out</button>
       </nav>
     </header>
+
+    <div id="problem" hidden role="alert"></div>
 
     <div id="view-write">
       <div class="meta">
@@ -353,24 +358,68 @@ function computeStreak() {
 /* ---------- storage ---------- */
 const userDoc = () => doc(db, "users", S.user.uid);
 const entryDoc = (k) => doc(db, "users", S.user.uid, "entries", k);
+const blankEntry = () => ({ text: "", words: 0, timeline: [], distractions: 0, startedAt: null, doneAt: null, summary: null });
+
+/* Firestore problems are shown on the page instead of dying silently in the console.
+   The most common one by far is security rules that don't let this account in. */
+function explain(e, what) {
+  const code = e?.code || "";
+  const box = $("#problem");
+  if (code === "permission-denied") {
+    box.innerHTML = `<strong>Firestore is refusing this account</strong> (permission-denied while ${what}).\n` +
+      `Your writing is kept in this browser for now and will sync once the rules allow it.\n` +
+      `Fix: Firebase console → Firestore Database → Rules. Publish the <code>firestore.rules</code> from the repo, ` +
+      `and if it lists emails, make sure <code>${esc(S.user?.email || "your address")}</code> is one of them.`;
+  } else if (code === "unavailable" || code === "failed-precondition") {
+    box.textContent = `Can't reach Firestore right now (${code}). Your writing is kept in this browser and will sync when the connection is back.`;
+  } else {
+    box.textContent = `Storage error while ${what}: ${code || e?.message || e}`;
+  }
+  box.hidden = false;
+  console.error(what, e);
+}
+function clearProblem() { $("#problem").hidden = true; }
 
 async function loadIndex() {
-  const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
   S.index = {};
-  snap.forEach((d) => { const v = d.data(); S.index[d.id] = { words: v.words || 0, doneAt: v.doneAt || null }; });
+  try {
+    const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
+    snap.forEach((d) => { const v = d.data(); S.index[d.id] = { words: v.words || 0, doneAt: v.doneAt || null }; });
+    clearProblem();
+  } catch (e) {
+    explain(e, "loading your entries");
+    // Fall back to whatever this browser has, so streaks and history aren't blank.
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i); if (!key?.startsWith("750:") || key === "750:resetHour") continue;
+        const bk = JSON.parse(localStorage.getItem(key)); S.index[key.slice(4)] = { words: countWords(bk?.text || ""), doneAt: null };
+      }
+    } catch {}
+  }
 }
 
 async function openDay(k) {
   flushSave();
   S.date = k; S.lastPoint = 0;
-  const snap = await getDoc(entryDoc(k));
-  S.entry = snap.exists() ? snap.data() : { text: "", words: 0, timeline: [], distractions: 0, startedAt: null, doneAt: null, summary: null };
+  const ed = $("#editor"); ed.disabled = true;
+  let entry = null;
+  try {
+    const snap = await getDoc(entryDoc(k));
+    entry = snap.exists() ? snap.data() : blankEntry();
+    clearProblem();
+  } catch (e) {
+    explain(e, "opening " + k);
+    entry = blankEntry();
+  }
+  if (S.date !== k) return; // user clicked elsewhere while we were loading
+  S.entry = entry;
   // Local backup wins if newer (unsaved work from a lost connection).
   try {
     const bk = JSON.parse(localStorage.getItem("750:" + k) || "null");
-    if (bk && bk.updatedAt > (S.entry.updatedAt || 0) && bk.text.length >= (S.entry.text || "").length) { S.entry.text = bk.text; S.entry.words = countWords(bk.text); S.dirty = true; }
+    if (bk && bk.updatedAt > (S.entry.updatedAt || 0) && (bk.text || "").length >= (S.entry.text || "").length) { S.entry.text = bk.text; S.entry.words = countWords(bk.text); S.dirty = true; }
   } catch {}
-  $("#editor").value = S.entry.text || "";
+  ed.value = S.entry.text || "";
+  ed.disabled = false;
   $("#stats").hidden = true; $("#btn-stats").textContent = "Stats";
   render();
   autosize();
@@ -395,18 +444,20 @@ async function save() {
     S.index[k] = { words: payload.words, doneAt: payload.doneAt };
     localStorage.removeItem("750:" + k);
     if (!S.dirty) $("#save-status").textContent = "saved";
+    clearProblem();
     renderMeta();
   } catch (e) {
     S.dirty = true;
-    console.error("save failed", e);
-    $("#save-status").textContent = "not saved (" + (e.code || e.message || "unknown error") + ")";
+    explain(e, "saving " + k);
+    $("#save-status").textContent = "kept in this browser only (" + (e.code || e.message || "unknown error") + ")";
     $("#save-status").className = "save-err";
-    scheduleSave(5000);
+    scheduleSave(e.code === "permission-denied" ? 30000 : 5000);
   }
 }
 
 /* ---------- editor ---------- */
 function onInput() {
+  if (!S.entry) return; // nothing loaded yet
   const text = $("#editor").value;
   const words = countWords(text);
   const now = Date.now();
@@ -726,7 +777,8 @@ const periodDoc = (id) => doc(db, "users", S.user.uid, "summaries", id);
 async function showPeriodSummary() {
   const sel = $("#period-select"); const id = sel.value; if (!id) return;
   const out = $("#period-out"); out.innerHTML = "";
-  const snap = await getDoc(periodDoc(id));
+  let snap;
+  try { snap = await getDoc(periodDoc(id)); } catch (e) { explain(e, "loading summaries"); $("#btn-period").textContent = "Summarize"; return; }
   if (snap.exists() && sel.value === id) { out.innerHTML = `<div class="summary">${esc(snap.data().summary)}</div>`; $("#btn-period").textContent = "Summarize again"; }
   else $("#btn-period").textContent = "Summarize";
 }
@@ -810,13 +862,27 @@ $("#btn-import").addEventListener("click", async () => {
 /* ---------- settings ---------- */
 $("#reset-hour").addEventListener("change", async (ev) => {
   S.resetHour = Number(ev.target.value);
-  await setDoc(userDoc(), { resetHour: S.resetHour }, { merge: true });
+  try { localStorage.setItem("750:resetHour", S.resetHour); } catch {}
+  try { await setDoc(userDoc(), { resetHour: S.resetHour }, { merge: true }); } catch (e) { explain(e, "saving settings"); }
   if (!S.index[S.date] && S.date !== todayKey()) await openDay(todayKey());
   renderMeta();
 });
 $("#btn-export").addEventListener("click", async () => {
-  const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
-  const out = {}; snap.forEach((d) => (out[d.id] = d.data()));
+  flushSave();
+  const out = {};
+  try {
+    const snap = await getDocs(collection(db, "users", S.user.uid, "entries"));
+    snap.forEach((d) => (out[d.id] = d.data()));
+  } catch (e) { explain(e, "exporting"); }
+  // Include anything only this browser has.
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i); if (!key?.startsWith("750:") || key === "750:resetHour") continue;
+      const k = key.slice(4), bk = JSON.parse(localStorage.getItem(key));
+      if (!out[k] || (bk.updatedAt || 0) > (out[k].updatedAt || 0)) out[k] = { ...(out[k] || {}), text: bk.text, words: countWords(bk.text || ""), updatedAt: bk.updatedAt };
+    }
+  } catch {}
+  if (S.entry && S.date) out[S.date] = { ...(out[S.date] || {}), ...S.entry };
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `750-${todayKey()}.json`; a.click();
 });
@@ -843,9 +909,14 @@ onAuthStateChanged(auth, async (user) => {
   }
   S.user = user;
   $("#signin").hidden = !!user; $("#app").hidden = !user;
-  if (!user) { $("#bar").style.width = "0%"; return; }
-  const u = await getDoc(userDoc());
-  S.resetHour = u.exists() ? (u.data().resetHour || 0) : 0;
+  if (!user) { $("#bar").style.width = "0%"; clearProblem(); return; }
+  try {
+    const u = await getDoc(userDoc());
+    S.resetHour = u.exists() ? (u.data().resetHour || 0) : 0;
+  } catch (e) {
+    explain(e, "loading your settings");
+    S.resetHour = Number(localStorage.getItem("750:resetHour") || 0);
+  }
   await loadIndex();
   await openDay(todayKey());
   showView("write");

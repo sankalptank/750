@@ -13,7 +13,7 @@ Everything (writing, word counts, streaks, the mindset/feeling/topic stats) runs
 1. Go to https://console.firebase.google.com → **Add project** (Analytics off is fine).
 2. **Build → Authentication → Get started → Sign-in method → Google → Enable.** Then open **Settings → Authorized domains** and add `sankalptank.com`.
 3. **Build → Firestore Database → Create database** (production mode, pick a region near you).
-4. In Firestore → **Rules**, paste the contents of `firestore.rules`. Replace `you@gmail.com` with your Google address (you can list several). Publish.
+4. In Firestore → **Rules**, paste the contents of `firestore.rules` and **Publish**. As written, any Google account can keep its own private journal and nobody can read anyone else's. To restrict the database to specific accounts, edit `allowedAccount()` in the file first (see the comment there). Or, with the Firebase CLI installed and logged in, run `firebase deploy --only firestore:rules` from this folder.
 5. **Project settings (gear) → Your apps → Web (</>)** → register the app. Copy the `firebaseConfig` values (`apiKey`, `authDomain`, `projectId`, `appId`) into the `FIREBASE_CONFIG` block at the top of `index.html`'s script.
 6. Optional: set `ALLOWED_EMAILS = ["you@gmail.com"]` in the same block so the sign-in screen rejects other accounts too. (The Firestore rules are the real lock; this is just a nicer message.)
 
@@ -49,4 +49,11 @@ The worker checks the Firebase login token with Google before calling the model,
 - **History**: month grid, click any day to read or edit it. With AI set up, a Summaries box under the grid summarizes any week (Sunday to Saturday) or the whole month; results are saved so you only pay once.
 - **Import**: Settings → Import past entries. Takes a 750words.com export (.txt), this site's own .json, or .txt/.md files named by date or split by `## YYYY-MM-DD` headings. Existing days with more words are kept unless you tick Replace.
 - **Export**: Settings → download everything as JSON.
+## If nothing works
+
+- **The editor says "Firestore is refusing this account" / the console shows `Missing or insufficient permissions`**: the rules published in the Firebase console are not the ones in `firestore.rules`. Either the database is still in its default locked mode, or the rules were published with the old `you@gmail.com` placeholder still in them. Re-do step 4 above. Until then, the page keeps your writing in the browser and syncs it once the rules let it through.
+- **The word count stays at 0 while you type**: same cause as above (older versions of the page crashed on every keystroke when the entry hadn't loaded). Update `index.html` and fix the rules.
+- **"Sign-in didn't complete: auth/unauthorized-domain"**: add the domain you're serving from under Authentication → Settings → Authorized domains.
+- **Summaries say "couldn't summarize: 403 Not allowed"**: your address isn't in the worker's `ALLOWED_EMAILS` secret.
+
 - **Privacy**: the page is `noindex`; Firestore rules restrict reads to your own account; the AI worker only accepts your account. Entries never touch any server except your own Firebase project (and the model, only for summaries you request).

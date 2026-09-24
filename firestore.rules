@@ -1,21 +1,25 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each person can only touch their own tree. Nobody else, not even signed-in users, can read it.
+    // Each person can only touch their own tree. Nobody else, not even other signed-in users, can read it.
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid && allowedAccount();
-      match /entries/{day} {
-        allow read, write: if request.auth != null && request.auth.uid == uid && allowedAccount();
-      }
-      match /summaries/{id} {
-        allow read, write: if request.auth != null && request.auth.uid == uid && allowedAccount();
-      }
-    }
-    // Lock the whole database to specific Google accounts. Add emails here, or return true to let
-    // any Google account keep its own private journal.
-    function allowedAccount() {
-      return request.auth.token.email in ['you@gmail.com'];
+      allow read, write: if isOwner(uid);
+      match /entries/{day}   { allow read, write: if isOwner(uid); }
+      match /summaries/{id}  { allow read, write: if isOwner(uid); }
     }
     match /{document=**} { allow read, write: if false; }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid && allowedAccount();
+    }
+
+    // Optional extra lock: only these Google accounts may use the database at all.
+    // As published, any Google account may keep its own private journal (matching ALLOWED_EMAILS = [] in index.html).
+    // To restrict it, replace `return true;` with e.g.
+    //   return request.auth.token.email in ['you@gmail.com', 'someone-else@gmail.com'];
+    // Leaving a placeholder address here is the #1 way to lock yourself out ("Missing or insufficient permissions").
+    function allowedAccount() {
+      return true;
+    }
   }
 }
